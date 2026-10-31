@@ -1,11 +1,11 @@
 #!/bin/bash
-# Builds KolonySpaceCenters.dll with the Mono C# compiler (mcs) against a KSP install.
+# Builds OffworldSpaceCenters.dll with the Mono C# compiler (mcs) against a KSP install.
 # Usage: KSPDIR="/path/to/Kerbal Space Program" ./build.sh
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
 KSPDIR="${KSPDIR:-D:/steaminstall/steamapps/common/Kerbal Space Program}"
 M="$KSPDIR/KSP_x64_Data/Managed"
-OUT="$HERE/../GameData/KolonySpaceCenters/Plugins"
+OUT="$HERE/../GameData/OffworldSpaceCenters/Plugins"
 mkdir -p "$OUT"
 MCS="${MCS:-mcs}"
 "$MCS" -target:library -optimize+ -debug- -nowarn:1591,0618,0109 -langversion:7 \
@@ -17,5 +17,5 @@ MCS="${MCS:-mcs}"
   -r:"$M/UnityEngine.ImageConversionModule.dll" -r:"$M/UnityEngine.InputLegacyModule.dll" -r:"$M/UnityEngine.AnimationModule.dll" \
   -r:"$KSPDIR/GameData/000_Harmony/0Harmony.dll" \
   -r:"$KSPDIR/GameData/KerbalKonstructs/KerbalKonstructs.dll" \
-  -out:"$OUT/KolonySpaceCenters.dll" "$HERE"/*.cs
-echo "Built $OUT/KolonySpaceCenters.dll"
+  -out:"$OUT/OffworldSpaceCenters.dll" "$HERE"/*.cs
+echo "Built $OUT/OffworldSpaceCenters.dll"

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace KolonySpaceCenters
+namespace OffworldSpaceCenters
 {
     /// <summary>
     /// Hides the flight-specific UI (navball, staging, altimeter, time/warp frame, portraits, docking and
@@ -91,7 +91,7 @@ namespace KolonySpaceCenters
             warping = false;
         }
 
-        public static void Draw(KolonyCenter center, Vessel anchor)
+        public static void Draw(OffworldCenter center, Vessel anchor)
         {
             EnsureStyles();
             GUI.skin = HighLogic.Skin;
@@ -132,9 +132,9 @@ namespace KolonySpaceCenters
             }
             GUILayout.FlexibleSpace();
             DrawNextMorning(anchor);
-            if (GUILayout.Button("Kolony", btnStyle, GUILayout.Width(64f)))
+            if (GUILayout.Button("Bases", btnStyle, GUILayout.Width(64f)))
             {
-                if (KolonyWindow.Instance != null) KolonyWindow.Instance.ShowBasePanel();
+                if (OffworldWindow.Instance != null) OffworldWindow.Instance.ShowBasePanel();
             }
             if (GUILayout.Button("KSC", btnStyle, GUILayout.Width(50f)))
             {

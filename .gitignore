@@ -1,0 +1,19 @@
+# Build output (dotnet build / mcs)
+Source/bin/
+Source/obj/
+*.pdb
+
+# Release zips are uploaded to SpaceDock, not committed
+*.zip
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# IDE and OS files
+.vs/
+.idea/
+*.user
+*.suo
+.DS_Store
+Thumbs.db

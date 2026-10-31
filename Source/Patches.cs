@@ -5,11 +5,11 @@ using HarmonyLib;
 using KSP.UI.Screens;
 using UnityEngine;
 
-namespace KolonySpaceCenters
+namespace OffworldSpaceCenters
 {
     /// <summary>Applies the Harmony patches once, at the main menu. Each patch is applied separately so one failure does not take the rest down.</summary>
     [KSPAddon(KSPAddon.Startup.MainMenu, true)]
-    public class KolonyPatcher : MonoBehaviour
+    public class OffworldPatcher : MonoBehaviour
     {
         private static bool patched;
 
@@ -17,7 +17,7 @@ namespace KolonySpaceCenters
         {
             if (patched) return;
             patched = true;
-            Harmony harmony = new Harmony("KolonySpaceCenters");
+            Harmony harmony = new Harmony("OffworldSpaceCenters");
 
             // 1. Vessel.IsRecoverable: used by the Tracking Station Recover button and by other mods.
             TryPatch(harmony, "Vessel.IsRecoverable",
@@ -57,6 +57,26 @@ namespace KolonySpaceCenters
             TryPatch(harmony, "SpaceCenterCamera2.Start",
                 AccessTools.Method(typeof(SpaceCenterCamera2), "Start"),
                 AccessTools.Method(typeof(NativeSpaceCenter), "CameraStart_Prefix"), null, null);
+            // every scene change starts from clean home-world references (and latches the one-shot stock KSC request)
+            try
+            {
+                GameEvents.onGameSceneLoadRequested.Add(NativeSpaceCenter.OnSceneLoadRequested);
+                GameEvents.onGameStateLoad.Add(NativeSpaceCenter.OnGameStateLoad);
+            }
+            catch (Exception e)
+            {
+                Log.Error("Could not subscribe to scene/game load events: " + e.Message);
+            }
+
+            // 5b. Vessel markers of the Space Center scene: at an off-world base, show the vessels parked there.
+            TryPatch(harmony, "KSCVesselMarkers.SpawnVesselMarkers",
+                AccessTools.Method(typeof(KSCVesselMarkers), "SpawnVesselMarkers"),
+                AccessTools.Method(typeof(MarkerPatches), "SpawnVesselMarkers_Prefix"), null, null);
+
+            // 5c. "Warp to next morning" measured at the base with that body's solar day.
+            TryPatch(harmony, "UIWarpToNextMorning.Setup",
+                AccessTools.Method(typeof(KSP.UI.UIWarpToNextMorning), "Setup", new Type[] { typeof(double).MakeByRefType() }),
+                AccessTools.Method(typeof(MorningPatches), "Setup_Prefix"), null, null);
 
             // 6. Altimeter slider: the flight Recover button has its own isHomeWorld check.
             TryPatch(harmony, "AltimeterSliderButtons.UpdateForVessel",
@@ -110,7 +130,7 @@ namespace KolonySpaceCenters
             if (scene != GameScenes.SPACECENTER) return true;
             try
             {
-                KolonyCenter center;
+                OffworldCenter center;
                 if (GhostSpaceCenter.ShouldRedirect(out center))
                 {
                     Log.Info("Redirecting Space Center to " + center);
@@ -142,7 +162,7 @@ namespace KolonySpaceCenters
             if (__result) return;
             try
             {
-                KolonyScenario sc = KolonyScenario.Instance;
+                OffworldScenario sc = OffworldScenario.Instance;
                 if (sc != null && sc.IsRecoverableAtCenter(__instance)) __result = true;
             }
             catch (Exception e)
@@ -161,9 +181,9 @@ namespace KolonySpaceCenters
             __state = null;
             try
             {
-                KolonyScenario sc = KolonyScenario.Instance;
+                OffworldScenario sc = OffworldScenario.Instance;
                 if (sc == null || pv == null) return;
-                KolonyCenter center;
+                OffworldCenter center;
                 if (!sc.IsRecoverableAtCenter(pv, out center)) return;
 
                 RecoveryState st = new RecoveryState();
@@ -172,7 +192,7 @@ namespace KolonySpaceCenters
                 st.displayLandedAt = pv.displaylandedAt;
                 st.previousSpaceCenter = SpaceCenter.Instance;
 
-                if (KolonySettings.FullValue)
+                if (OffworldSettings.FullValue)
                 {
                     // Any launch site name gives 100%; "LaunchPad" is matched by stock without touching PSystemSetup.
                     pv.landedAt = "LaunchPad";
@@ -180,7 +200,7 @@ namespace KolonySpaceCenters
                 pv.displaylandedAt = center.Name;
                 st.swapped = true;
                 __state = st;
-                Log.Info("Recovering '" + pv.vesselName + "' at flagged base " + center + (KolonySettings.FullValue ? " (full value)" : ""));
+                Log.Info("Recovering '" + pv.vesselName + "' at flagged base " + center + (OffworldSettings.FullValue ? " (full value)" : ""));
             }
             catch (Exception e)
             {
@@ -237,7 +257,7 @@ namespace KolonySpaceCenters
                 if (!ReflectionOk) return;
                 if (v == null || v != FlightGlobals.ActiveVessel) return;
                 if (v.LandedOrSplashed && v.mainBody != null && v.mainBody.isHomeWorld) return; // stock already handles this
-                KolonyScenario sc = KolonyScenario.Instance;
+                OffworldScenario sc = OffworldScenario.Instance;
                 if (sc == null || !sc.IsRecoverableAtCenter(v)) return;
 
                 StopStockCoroutines(__instance);
@@ -266,8 +286,8 @@ namespace KolonySpaceCenters
         private static IEnumerator UnlockAtBase(AltimeterSliderButtons asb, Vessel v)
         {
             yield return null;
-            KolonyScenario sc = KolonyScenario.Instance;
-            KolonyCenter center;
+            OffworldScenario sc = OffworldScenario.Instance;
+            OffworldCenter center;
             while (asb != null && v != null && v == FlightGlobals.ActiveVessel && sc != null && sc.IsRecoverableAtCenter(v, out center))
             {
                 int state = (int)stateField.GetValue(asb);

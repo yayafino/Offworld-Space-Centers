@@ -1,0 +1,13 @@
+# Reference copy of this mod's CKAN metadata.
+# CKAN reads NetKAN/OffworldSpaceCenters.netkan in https://github.com/KSP-CKAN/NetKAN,
+# not this file, so changes to dependencies or tags need a pull request there.
+identifier: OffworldSpaceCenters
+$kref: '#/ckan/spacedock/4662'
+$vref: '#/ckan/ksp-avc'
+tags:
+  - plugin
+  - buildings
+depends:
+  - name: KerbalKonstructs
+    min_version: v1.12.3.0
+  - name: Harmony2

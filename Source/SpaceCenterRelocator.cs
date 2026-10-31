@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 
-namespace KolonySpaceCenters
+namespace OffworldSpaceCenters
 {
     /// <summary>
     /// Experimental: when a flagged base on the home world is selected as the "Space Center view",
@@ -14,7 +14,7 @@ namespace KolonySpaceCenters
     public class SpaceCenterRelocator : MonoBehaviour
     {
         public static bool Relocated { get; private set; }
-        public static KolonyCenter RelocatedTo { get; private set; }
+        public static OffworldCenter RelocatedTo { get; private set; }
 
         private GameObject anchor;
 
@@ -48,9 +48,9 @@ namespace KolonySpaceCenters
 
         private void Relocate()
         {
-            KolonyScenario sc = KolonyScenario.Instance;
+            OffworldScenario sc = OffworldScenario.Instance;
             if (sc == null) return;
-            KolonyCenter center = sc.SelectedCenter;
+            OffworldCenter center = sc.SelectedCenter;
             if (center == null) return;
 
             if (NativeSpaceCenter.Active && NativeSpaceCenter.Center != null && NativeSpaceCenter.Center.Name == center.Name)
@@ -58,7 +58,7 @@ namespace KolonySpaceCenters
                 FinishNative(center);
                 return;
             }
-            if (!KolonySettings.RelocateCamera) return;
+            if (!OffworldSettings.RelocateCamera) return;
             if (!center.IsOnHomeWorld)
             {
                 // Off-world centers either run through the native scene (handled above) or the anchor view in flight.
@@ -80,6 +80,7 @@ namespace KolonySpaceCenters
             {
                 try
                 {
+                    if (cam == null || !cam.gameObject.scene.IsValid()) continue;
                     float nomHeight = 45f - (float)center.Body.GetAltitude(target.position);
                     cam.transform.parent = target;
                     cam.transform.position = target.position;
@@ -112,10 +113,9 @@ namespace KolonySpaceCenters
 
         /// <summary>
         /// The real Space Center scene is already running on the target body (NativeSpaceCenter). Re-assert the camera
-        /// in case Kerbal Konstructs moved it back to the KSC flagpole, point KK at the new body so its statics load,
-        /// and tune the stock warp-to-morning button.
+        /// in case Kerbal Konstructs moved it back to the KSC flagpole and point KK at the new body so its statics load.
         /// </summary>
-        private void FinishNative(KolonyCenter center)
+        private void FinishNative(OffworldCenter center)
         {
             Transform anchor = NativeSpaceCenter.Anchor;
             CelestialBody body = NativeSpaceCenter.Body;
@@ -125,6 +125,8 @@ namespace KolonySpaceCenters
             {
                 try
                 {
+                    // FindObjectsOfTypeAll also returns prefab assets; only touch cameras that live in the scene
+                    if (cam == null || !cam.gameObject.scene.IsValid()) continue;
                     NativeSpaceCenter.ApplyCameraSettings(cam);
                     if (camPqsField != null) camPqsField.SetValue(cam, body.pqsController);
                     if (camInitialPosField != null) camInitialPosField.SetValue(cam, anchor);
@@ -139,18 +141,17 @@ namespace KolonySpaceCenters
                 catch (Exception e) { Log.Warn("Native camera fix: " + e.Message); }
             }
             KKBridge.SwitchBody(body);
-            NativeSpaceCenter.TuneNextMorning();
             Relocated = true;
             RelocatedTo = center;
             Log.Info("Native Space Center scene ready at " + center + " (" + fixedCams + " camera(s))");
             ScreenMessages.PostScreenMessage(center.Name + " Space Center", 4f, ScreenMessageStyle.UPPER_CENTER);
         }
 
-        private Transform CreateAnchor(KolonyCenter center)
+        private Transform CreateAnchor(OffworldCenter center)
         {
             CelestialBody body = center.Body;
             if (body == null) return null;
-            anchor = new GameObject("KolonyAnchor_" + center.Name.Replace(' ', '_'));
+            anchor = new GameObject("OffworldAnchor_" + center.Name.Replace(' ', '_'));
             Transform parent = body.pqsController != null ? body.pqsController.transform : body.transform;
             anchor.transform.parent = parent;
             anchor.transform.position = center.WorldPosition;

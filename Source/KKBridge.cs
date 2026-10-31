@@ -4,7 +4,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 
-namespace KolonySpaceCenters
+namespace OffworldSpaceCenters
 {
     /// <summary>
     /// All direct contact with Kerbal Konstructs lives here. Every method that references a KK type
@@ -227,7 +227,7 @@ namespace KolonySpaceCenters
             foreach (KerbalKonstructs.Core.StaticInstance inst in all)
             {
                 if (inst == null || inst.CelestialBody == null || inst.CelestialBody.name != bodyName) continue;
-                double d = KolonyCenter.GreatCircle(body.Radius, lat, lon, inst.RefLatitude, inst.RefLongitude);
+                double d = OffworldCenter.GreatCircle(body.Radius, lat, lon, inst.RefLatitude, inst.RefLongitude);
                 if (d > radiusMeters) continue;
                 list.Add(ToInfo(inst));
             }

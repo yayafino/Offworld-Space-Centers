@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace KolonySpaceCenters
+namespace OffworldSpaceCenters
 {
     /// <summary>Scene transitions used by the base panel: editors, tracking station, recovery, base view.</summary>
     public static class SceneActions
@@ -41,7 +41,7 @@ namespace KolonySpaceCenters
             }
         }
 
-        public static void OpenEditor(KolonyCenter center, EditorFacility facility)
+        public static void OpenEditor(OffworldCenter center, EditorFacility facility)
         {
             string reason;
             if (!CanLeaveFlight(out reason))
@@ -88,8 +88,32 @@ namespace KolonySpaceCenters
             HighLogic.LoadScene(GameScenes.SPACECENTER);
         }
 
+        /// <summary>
+        /// Open the stock KSC once even though a base is selected as the Space Center (the selection is kept, so
+        /// the next Space Center button goes back to the base). Works from flight, the anchor view, the editors,
+        /// the Tracking Station and from an off-world Space Center scene.
+        /// </summary>
+        public static void OpenStockKSC()
+        {
+            if (GhostView.Active)
+            {
+                GhostView.GoToRealSpaceCenter(FacilityRole.None);
+                return;
+            }
+            string reason;
+            if (!CanLeaveFlight(out reason))
+            {
+                ScreenMessages.PostScreenMessage(reason, 4f, ScreenMessageStyle.UPPER_CENTER);
+                return;
+            }
+            if (HighLogic.LoadedScene == GameScenes.FLIGHT && !SaveGame()) return;
+            GhostSpaceCenter.SuppressRedirectOnce = true;
+            NativeSpaceCenter.StockOnce = true;
+            HighLogic.LoadScene(GameScenes.SPACECENTER);
+        }
+
         /// <summary>Open the chosen facility of a center from wherever we are.</summary>
-        public static void OpenFacility(KolonyCenter center, FacilityRole role)
+        public static void OpenFacility(OffworldCenter center, FacilityRole role)
         {
             switch (role)
             {
@@ -163,8 +187,8 @@ namespace KolonySpaceCenters
                 ScreenMessages.PostScreenMessage("Vessel is not inside a flagged base's recovery radius.", 4f, ScreenMessageStyle.UPPER_CENTER);
                 return;
             }
-            KolonyCenter center = null;
-            if (KolonyScenario.Instance != null) KolonyScenario.Instance.IsRecoverableAtCenter(v, out center);
+            OffworldCenter center = null;
+            if (OffworldScenario.Instance != null) OffworldScenario.Instance.IsRecoverableAtCenter(v, out center);
             bool stopped = center != null ? center.IsStopped(v) : v.horizontalSrfSpeed <= 0.3d;
             if (!stopped)
             {
@@ -175,7 +199,7 @@ namespace KolonySpaceCenters
         }
 
         /// <summary>Vessels (loaded or not) inside the center's radius: landed ones for ground centers, anything near a station.</summary>
-        public static List<Vessel> VesselsAt(KolonyCenter center)
+        public static List<Vessel> VesselsAt(OffworldCenter center)
         {
             List<Vessel> list = new List<Vessel>();
             if (center == null || !HighLogic.LoadedSceneHasPlanetarium || FlightGlobals.Vessels == null) return list;
@@ -190,7 +214,7 @@ namespace KolonySpaceCenters
             return list;
         }
 
-        public static int CrewAt(KolonyCenter center)
+        public static int CrewAt(OffworldCenter center)
         {
             int n = 0;
             foreach (Vessel v in VesselsAt(center)) n += v.GetCrewCount();
@@ -198,7 +222,7 @@ namespace KolonySpaceCenters
         }
 
         /// <summary>Pick the most "base-like" vessel to focus for a base view.</summary>
-        public static Vessel PickViewVessel(KolonyCenter center)
+        public static Vessel PickViewVessel(OffworldCenter center)
         {
             Vessel best = null;
             int bestScore = int.MinValue;
@@ -231,7 +255,7 @@ namespace KolonySpaceCenters
         }
 
         /// <summary>From the Tracking Station / Space Center: jump to flight at a vessel parked at the base.</summary>
-        public static bool OpenBaseView(KolonyCenter center)
+        public static bool OpenBaseView(OffworldCenter center)
         {
             if (center == null) return false;
             Vessel v = PickViewVessel(center);

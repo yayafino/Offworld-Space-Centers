@@ -3,7 +3,7 @@ using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
 
-namespace KolonySpaceCenters
+namespace OffworldSpaceCenters
 {
     /// <summary>
     /// Runs the real Space Center scene at a base on another body.
@@ -12,15 +12,20 @@ namespace KolonySpaceCenters
     /// field 'cb', makes that body the rotating reference frame ('currentMainBody', inverse rotation, reversed
     /// orbit driver), activates the PQS in 'pqs' and puts the floating origin at 'scTransform'. Kerbin only ends up
     /// there because that is what system setup stored. Before the scene initialises we point those three fields at
-    /// the target body and at an anchor PQSCity we create at the base (the same component stock uses for the KSC
-    /// and KK uses for its group centers), let stock do its normal setup, and put the fields back as soon as any
-    /// other scene starts initialising. The Space Center camera finds its PQS by name, so its two name fields are
-    /// redirected too.
+    /// the target body and at an anchor transform we place at the base (a plain child of the body's PQS, exactly
+    /// like the stock "SpaceCenterCamera" pivot under Kerbin's PQS), let stock do its normal setup, and put the
+    /// fields back as soon as the next scene load is requested. The Space Center camera finds its PQS and pivot by
+    /// name, so its two name fields are redirected too.
+    ///
+    /// The anchor must not be a PQSCity: PQSCity deactivates all of its child transforms every time the sphere
+    /// resets and only re-enables them once a quad update completes. The stock camera nests the whole camera rig
+    /// (SpaceCenterCamera2, CameraTransform, FlightCamera) under the pivot, so a PQSCity pivot switches the main
+    /// camera off for a while after every reset. That is what broke Scatterer, the vessel markers and Camera.main.
     /// </summary>
     public static class NativeSpaceCenter
     {
         public static bool Active { get; private set; }
-        public static KolonyCenter Center { get; private set; }
+        public static OffworldCenter Center { get; private set; }
         public static Transform Anchor { get; private set; }
         public static CelestialBody Body { get; private set; }
 
@@ -35,9 +40,9 @@ namespace KolonySpaceCenters
         public static bool ReflectionOk { get { return fCb != null && fPqs != null && fSc != null; } }
 
         /// <summary>True when this center will be shown through the real Space Center scene.</summary>
-        public static bool Handles(KolonyCenter c)
+        public static bool Handles(OffworldCenter c)
         {
-            if (c == null || !KolonySettings.NativeOffworldScene || !ReflectionOk) return false;
+            if (c == null || !OffworldSettings.NativeOffworldScene || !ReflectionOk) return false;
             if (c.IsVessel || c.IsOnHomeWorld) return false;
             CelestialBody b = c.Body;
             return b != null && b.pqsController != null;
@@ -47,26 +52,100 @@ namespace KolonySpaceCenters
         /// Snapshot of the selected center. PSystemSetup initialises the Space Center scene before the scenario
         /// modules of that scene exist, so the live scenario cannot be consulted at that moment.
         /// </summary>
-        private static KolonyCenter remembered;
+        private static OffworldCenter remembered;
 
-        public static void RememberSelection(KolonyCenter c)
+        public static void RememberSelection(OffworldCenter c)
         {
             remembered = c;
+            rememberedIsAuthoritative = true;
         }
 
-        private static KolonyCenter Target()
+        /// <summary>
+        /// Set right before a LoadScene(SPACECENTER) that must open the stock KSC even though a base is selected
+        /// ("Go to stock KSC" buttons). Consumed by the load request that follows and applies to that whole load.
+        /// </summary>
+        public static bool StockOnce;
+        private static bool stockThisLoad;
+
+        /// <summary>
+        /// Set right before a LoadScene(SPACECENTER) issued by the mod's own "open this base" buttons. Those work
+        /// even when "Space Center button opens selected base" is off; stock Space Center buttons then stay stock.
+        /// </summary>
+        public static bool BaseOnce;
+        private static bool baseThisLoad;
+
+        private static OffworldCenter Target()
         {
-            KolonyScenario sc = KolonyScenario.Instance;
-            KolonyCenter c = sc != null ? sc.SelectedCenter : remembered;
-            if (c == null) c = remembered;
+            if (stockThisLoad) return null;
+            if (!baseThisLoad && !OffworldSettings.RedirectSpaceCenter) return null;
+            OffworldScenario sc = OffworldScenario.Instance;
+            OffworldCenter c;
+            if (sc != null) c = sc.SelectedCenter;
+            else
+            {
+                c = remembered;
+                if (c == null && !rememberedIsAuthoritative) c = FromSavedGame();
+            }
             return Handles(c) ? c : null;
+        }
+
+        /// <summary>
+        /// True once the running game has told us its selection (scenario loaded or changed). Cleared whenever a
+        /// game state is loaded (resume, quickload), so the saved node is consulted instead of a stale snapshot.
+        /// </summary>
+        private static bool rememberedIsAuthoritative;
+
+        // GameEvents.onGameStateLoad: a save was just read into HighLogic.CurrentGame
+        public static void OnGameStateLoad(ConfigNode node)
+        {
+            remembered = null;
+            rememberedIsAuthoritative = false;
+        }
+
+        /// <summary>
+        /// The selection as stored in the game that is about to run. The Space Center scene is initialised before
+        /// its scenario modules exist, so after "Resume" or a quickload this is the only source available.
+        /// </summary>
+        private static OffworldCenter FromSavedGame()
+        {
+            try
+            {
+                Game game = HighLogic.CurrentGame;
+                if (game == null || game.scenarios == null) return null;
+                string wanted = typeof(OffworldScenario).Name;
+                ConfigNode node = null;
+                ConfigNode legacy = null;
+                for (int i = 0; i < game.scenarios.Count; i++)
+                {
+                    ProtoScenarioModule psm = game.scenarios[i];
+                    if (psm == null) continue;
+                    if (psm.moduleName == wanted) node = psm.GetData();
+                    else if (psm.moduleName == OffworldScenario.LegacyScenarioName) legacy = psm.GetData();
+                }
+                // a save written by the mod under its previous name has not been migrated yet
+                if (node == null || !node.HasValue("migrated")) node = legacy ?? node;
+                if (node == null) return null;
+                string selected = node.GetValue("selectedSpaceCenter");
+                if (string.IsNullOrEmpty(selected)) return null;
+                foreach (ConfigNode n in node.GetNodes("CENTER"))
+                {
+                    OffworldCenter c = OffworldCenter.Load(n);
+                    if (c != null && c.Name == selected) return c;
+                }
+                return null;
+            }
+            catch (Exception e)
+            {
+                Log.Warn("Reading the saved Space Center selection failed: " + e.Message);
+            }
+            return null;
         }
 
         /// <summary>Swap PSystemSetup's references to the target body. Idempotent; safe to call from several hooks.</summary>
         public static void Prepare(PSystemSetup setup)
         {
             if (fieldsSwapped) return;
-            KolonyCenter c = Target();
+            OffworldCenter c = Target();
             if (c == null || setup == null) return;
             try
             {
@@ -110,13 +189,23 @@ namespace KolonySpaceCenters
         /// <summary>Put PSystemSetup back on the home world and release the target body from Space Center duty.</summary>
         public static void Restore(PSystemSetup setup)
         {
+            bool restored = !fieldsSwapped;
             try
             {
-                if (fieldsSwapped && setup != null)
+                if (fieldsSwapped)
                 {
-                    fCb.SetValue(setup, savedCb);
-                    fPqs.SetValue(setup, savedPqs);
-                    fSc.SetValue(setup, savedSc);
+                    if (setup == null) setup = PSystemSetup.Instance;
+                    if (setup != null)
+                    {
+                        fCb.SetValue(setup, savedCb);
+                        fPqs.SetValue(setup, savedPqs);
+                        fSc.SetValue(setup, savedSc);
+                        restored = true;
+                    }
+                    else
+                    {
+                        Log.Warn("PSystemSetup is not available; its references stay redirected until it is back.");
+                    }
                 }
                 if (targetCb != null) targetCb.forceActivate = false;
                 if (Body != null)
@@ -124,67 +213,63 @@ namespace KolonySpaceCenters
                     Body.inverseRotation = false;
                     if (Body.orbitDriver != null) Body.orbitDriver.reverse = false;
                 }
-                if (Active) Log.Info("Space Center scene references restored to the home world.");
+                if (Active && restored) Log.Info("Space Center scene references restored to the home world.");
             }
             catch (Exception e)
             {
                 Log.Warn("Native Space Center restore: " + e.Message);
             }
-            fieldsSwapped = false;
+            if (restored)
+            {
+                fieldsSwapped = false;
+                savedCb = savedPqs = savedSc = null;
+            }
             Active = false;
             Center = null;
             Anchor = null;
             Body = null;
             targetCb = null;
-            savedCb = savedPqs = savedSc = null;
         }
 
-        /// <summary>A PQSCity on the target PQS, sitting on the terrain at the base. Reused across scene loads.</summary>
-        private static Transform GetOrCreateAnchor(KolonyCenter c, CelestialBody body, PQS pqs)
+        /// <summary>
+        /// A plain transform under the target PQS, sitting on the terrain at the base and oriented with +Y up,
+        /// positioned the same way PQSCity.Orientate does it (repositionToSphereSurface + reorientToSphere).
+        /// Reused across scene loads when it survives; the stock camera's SurfaceObject pops it to the scene root,
+        /// in which case it dies with the scene and is simply recreated here.
+        /// </summary>
+        private static Transform GetOrCreateAnchor(OffworldCenter c, CelestialBody body, PQS pqs)
         {
-            string name = "KolonySC_" + Sanitize(c.Name);
+            string name = "OffworldSC_" + Sanitize(c.Name);
             Transform existing = pqs.transform.Find(name);
-            PQSCity city;
             GameObject go;
             if (existing != null)
             {
                 go = existing.gameObject;
-                city = go.GetComponent<PQSCity>();
-                if (city == null) city = go.AddComponent<PQSCity>();
+                // the previous scene's camera attached a SurfaceObject to keep the anchor on the surface; the new
+                // camera adds its own, so do not leave two of them steering the same transform
+                foreach (SurfaceObject so in go.GetComponents<SurfaceObject>()) UnityEngine.Object.DestroyImmediate(so);
             }
             else
             {
                 go = new GameObject(name);
                 go.transform.SetParent(pqs.transform, false);
-                city = go.AddComponent<PQSCity>();
             }
 
-            PQSCity.LODRange range = new PQSCity.LODRange();
-            range.renderers = new GameObject[0];
-            range.objects = new GameObject[0];
-            range.visibleRange = 25000f;
-            city.lod = new PQSCity.LODRange[] { range };
-            city.frameDelta = 10000f;
-            city.repositionRadial = (Vector3)(body.GetRelSurfaceNVector(c.Latitude, c.Longitude).normalized * pqs.radius);
-            city.repositionRadiusOffset = 0d;
-            city.repositionToSphere = false;
-            city.repositionToSphereSurface = true;
-            city.repositionToSphereSurfaceAddHeight = true;
-            city.reorientToSphere = true;
-            city.reorientInitialUp = Vector3.up;
-            city.reorientFinalAngle = c.IsKKSite ? KKBridge.GetSiteCameraRotation(c.KKSiteName) : 0f;
-            city.sphere = pqs;
-            city.order = 100;
-            city.modEnabled = true;
+            Vector3d radial = body.GetRelSurfaceNVector(c.Latitude, c.Longitude).normalized;
+            double height = pqs.radius;
             try
             {
-                city.OnSetup();
-                city.Orientate(true);
+                double h = pqs.GetSurfaceHeight(radial);
+                if (!double.IsNaN(h) && !double.IsInfinity(h) && h > 0d) height = h;
             }
             catch (Exception e)
             {
-                Log.Warn("Anchor PQSCity orientate: " + e.Message);
+                Log.Warn("Anchor terrain height unavailable, using the sphere radius: " + e.Message);
             }
+            go.transform.localPosition = (Vector3)(radial * height);
+            float yaw = c.IsKKSite ? KKBridge.GetSiteCameraRotation(c.KKSiteName) : 0f;
+            go.transform.localRotation = Quaternion.FromToRotation(Vector3.up, go.transform.localPosition.normalized) * Quaternion.AngleAxis(yaw, Vector3.up);
+            go.transform.localScale = Vector3.one;
             return go.transform;
         }
 
@@ -198,7 +283,23 @@ namespace KolonySpaceCenters
             return new string(buf);
         }
 
-        // ------------------------------------------------------------------ Harmony entry points
+        // ------------------------------------------------------------------ Harmony entry points / events
+
+        // GameEvents.onGameSceneLoadRequested: fired by HighLogic.LoadScene before the old scene is torn down.
+        // Every scene change starts from clean home-world references; the Space Center load then re-applies
+        // the redirect in OnLevelLoaded. This is also where the one-shot "stock KSC" request is latched.
+        public static void OnSceneLoadRequested(GameScenes scene)
+        {
+            try
+            {
+                stockThisLoad = scene == GameScenes.SPACECENTER && StockOnce;
+                baseThisLoad = scene == GameScenes.SPACECENTER && BaseOnce;
+                StockOnce = false;
+                BaseOnce = false;
+                if (fieldsSwapped || Active) Restore(PSystemSetup.Instance);
+            }
+            catch (Exception e) { Log.Warn("Scene load request: " + e.Message); }
+        }
 
         // PSystemSetup.SetSpaceCentre() prefix
         public static void SetSpaceCentre_Prefix(PSystemSetup __instance)
@@ -207,17 +308,29 @@ namespace KolonySpaceCenters
             catch (Exception e) { Log.Warn("SetSpaceCentre prefix: " + e.Message); }
         }
 
-        // PSystemSetup.OnLevelLoaded(GameScenes level) prefix: any non-Space-Center scene puts things back first
+        // PSystemSetup.OnLevelLoaded(GameScenes level) prefix
         public static void OnLevelLoaded_Prefix(PSystemSetup __instance, GameScenes level)
         {
             try
             {
                 if (level == GameScenes.SPACECENTER)
                 {
+                    // a Space Center to Space Center reload must not keep the previous redirect
+                    if (fieldsSwapped || Active) Restore(__instance);
                     Prepare(__instance);
                     return;
                 }
                 if (fieldsSwapped || Active) Restore(__instance);
+                if (level == GameScenes.MAINMENU)
+                {
+                    // another save may be loaded next; never carry a selection across games
+                    remembered = null;
+                    rememberedIsAuthoritative = false;
+                    stockThisLoad = false;
+                    StockOnce = false;
+                    baseThisLoad = false;
+                    BaseOnce = false;
+                }
             }
             catch (Exception e) { Log.Warn("OnLevelLoaded prefix: " + e.Message); }
         }
@@ -236,23 +349,13 @@ namespace KolonySpaceCenters
 
         public static void ApplyCameraSettings(SpaceCenterCamera2 cam)
         {
+            if (cam == null || Body == null || Anchor == null || Body.pqsController == null) return;
             cam.pqsName = Body.pqsController.gameObject.name;
             cam.initialPositionTransformName = Anchor.name;
             cam.rotationInitial = Center != null && Center.IsKKSite ? KKBridge.GetSiteCameraRotation(Center.KKSiteName) : 90f;
-            // same convention KK uses: the pivot ends up ~45 m above the anchor regardless of terrain height
+            // The camera adds the terrain height at the pivot to 'altitude' and offsets from the anchor along its up
+            // axis, so this puts the pivot ~45 m above the ground whatever the anchor's own height is (KK's convention).
             cam.altitudeInitial = 45f - (float)Body.GetAltitude(Anchor.position);
-        }
-
-        /// <summary>Fraction-of-day dawn estimate for the stock "warp to next morning" button (KK's formula).</summary>
-        public static void TuneNextMorning()
-        {
-            if (Body == null || Center == null) return;
-            try
-            {
-                double timeOfDawn = ((0.95d * (0.25d - Body.initialRotation / 360d) - (Center.Longitude / 360d) + 1d) % 1d);
-                KSP.UI.UIWarpToNextMorning.timeOfDawn = timeOfDawn + 0.05d;
-            }
-            catch (Exception e) { Log.Warn("Next morning tune: " + e.Message); }
         }
     }
 }

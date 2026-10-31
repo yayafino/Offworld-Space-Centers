@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace KolonySpaceCenters
+namespace OffworldSpaceCenters
 {
     /// <summary>
     /// Makes designated Kerbal Konstructs buildings behave like KSC facilities: hover highlights them and shows
@@ -16,7 +16,7 @@ namespace KolonySpaceCenters
 
         /// <summary>When not None, the next clicked building gets this role at AssignCenter.</summary>
         public FacilityRole PendingAssignRole = FacilityRole.None;
-        public KolonyCenter AssignCenter;
+        public OffworldCenter AssignCenter;
 
         private string hoverUuid;
         private string hoverText;
@@ -57,7 +57,7 @@ namespace KolonySpaceCenters
         }
 
         /// <summary>The center whose buildings are "live" right now.</summary>
-        public static KolonyCenter ViewedCenter
+        public static OffworldCenter ViewedCenter
         {
             get
             {
@@ -73,18 +73,18 @@ namespace KolonySpaceCenters
             }
         }
 
-        private static KolonyCenter CenterFor(string uuid, out FacilityRole role)
+        private static OffworldCenter CenterFor(string uuid, out FacilityRole role)
         {
             role = FacilityRole.None;
-            KolonyScenario sc = KolonyScenario.Instance;
+            OffworldScenario sc = OffworldScenario.Instance;
             if (sc == null) return null;
-            KolonyCenter viewed = ViewedCenter;
+            OffworldCenter viewed = ViewedCenter;
             if (viewed != null)
             {
                 role = viewed.RoleOf(uuid);
                 if (role != FacilityRole.None) return viewed;
             }
-            foreach (KolonyCenter c in sc.Centers)
+            foreach (OffworldCenter c in sc.Centers)
             {
                 role = c.RoleOf(uuid);
                 if (role != FacilityRole.None) return c;
@@ -92,7 +92,7 @@ namespace KolonySpaceCenters
             return null;
         }
 
-        public void BeginAssign(KolonyCenter center, FacilityRole role)
+        public void BeginAssign(OffworldCenter center, FacilityRole role)
         {
             AssignCenter = center;
             PendingAssignRole = role;
@@ -118,7 +118,7 @@ namespace KolonySpaceCenters
         public static bool IsPartKey(string key) { return key != null && key.StartsWith(PartPrefix); }
 
         /// <summary>Human-readable name for a facility key (KK building title or part title).</summary>
-        public static string FacilityTitle(KolonyCenter c, string key)
+        public static string FacilityTitle(OffworldCenter c, string key)
         {
             if (string.IsNullOrEmpty(key)) return "(none)";
             if (IsPartKey(key))
@@ -142,7 +142,7 @@ namespace KolonySpaceCenters
         }
 
         /// <summary>Parts of a station center that can be designated, as (key, title) pairs.</summary>
-        public static List<KeyValuePair<string, string>> PartCandidates(KolonyCenter c)
+        public static List<KeyValuePair<string, string>> PartCandidates(OffworldCenter c)
         {
             List<KeyValuePair<string, string>> list = new List<KeyValuePair<string, string>>();
             if (c == null || !c.IsVessel) return list;
@@ -161,17 +161,17 @@ namespace KolonySpaceCenters
         }
 
         /// <summary>Which vessel center's parts should react to the mouse right now.</summary>
-        private KolonyCenter PartCenter()
+        private OffworldCenter PartCenter()
         {
             if (PendingAssignRole != FacilityRole.None && AssignCenter != null && AssignCenter.IsVessel) return AssignCenter;
-            KolonyCenter viewed = ViewedCenter;
+            OffworldCenter viewed = ViewedCenter;
             if (viewed != null && viewed.IsVessel) return viewed;
             return null;
         }
 
         private void PollParts()
         {
-            KolonyCenter c = PartCenter();
+            OffworldCenter c = PartCenter();
             Part hp = c != null ? Mouse.HoveredPart : null;
             if (hp != null && (hp.vessel == null || !c.IsAnchor(hp.vessel))) hp = null;
 
@@ -202,7 +202,7 @@ namespace KolonySpaceCenters
                 }
             }
 
-            if (hoverPart != null && Input.GetMouseButtonDown(0) && !KolonyWindow.MouseOverWindow)
+            if (hoverPart != null && Input.GetMouseButtonDown(0) && !OffworldWindow.MouseOverWindow)
             {
                 string key = PartKey(hoverPart.flightID);
                 if (PendingAssignRole != FacilityRole.None && AssignCenter == c)
@@ -212,7 +212,7 @@ namespace KolonySpaceCenters
                     try { hoverPart.SetHighlightDefault(); } catch { }
                     hoverText = null;
                     CancelAssign();
-                    if (KolonyScenario.Instance != null) KolonyScenario.Instance.FireChanged();
+                    if (OffworldScenario.Instance != null) OffworldScenario.Instance.FireChanged();
                     return;
                 }
                 FacilityRole role = c.RoleOf(key);
@@ -228,7 +228,7 @@ namespace KolonySpaceCenters
         private void OnEnter(string uuid)
         {
             FacilityRole role;
-            KolonyCenter c = CenterFor(uuid, out role);
+            OffworldCenter c = CenterFor(uuid, out role);
             if (PendingAssignRole != FacilityRole.None && AssignCenter != null)
             {
                 hoverUuid = uuid;
@@ -263,14 +263,14 @@ namespace KolonySpaceCenters
                 ScreenMessages.PostScreenMessage((si != null ? si.Title : "Building") + " is now the " + FacilityRoles.DisplayName(PendingAssignRole) + " of " + AssignCenter.Name, 5f, ScreenMessageStyle.UPPER_CENTER);
                 KKBridge.Unhighlight(uuid);
                 CancelAssign();
-                if (KolonyScenario.Instance != null) KolonyScenario.Instance.FireChanged();
+                if (OffworldScenario.Instance != null) OffworldScenario.Instance.FireChanged();
                 return;
             }
             FacilityRole role;
-            KolonyCenter c = CenterFor(uuid, out role);
+            OffworldCenter c = CenterFor(uuid, out role);
             if (c == null || role == FacilityRole.None) return;
             // only react to buildings of the center we are looking at, or any center when nothing is "viewed"
-            KolonyCenter viewed = ViewedCenter;
+            OffworldCenter viewed = ViewedCenter;
             if (viewed != null && viewed != c) return;
             KKBridge.Unhighlight(uuid);
             SceneActions.OpenFacility(c, role);

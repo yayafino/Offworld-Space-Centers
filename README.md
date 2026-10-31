@@ -5,15 +5,16 @@ recover vessels with the stock recovery system when you land near them, open the
 from the base, designate your own buildings as facilities, see your bases in the Tracking Station, and make
 any base *the* Space Center that every "Space Center" button opens.
 
-For KSP 1.12.x. Requires Kerbal Konstructs (the KSP-RO fork, 1.12.3 or later), Harmony 2 and ModuleManager.
+For KSP 1.12.x. Requires Kerbal Konstructs (the KSP-RO fork, 1.12.3 or later) and Harmony 2.
 Licensed under the MIT License (see `LICENSE`).
 
 ## Install
 
 With CKAN: install **Offworld Space Centers**; the dependencies come along.
 
-Manually: copy the `GameData/OffworldSpaceCenters` folder into your KSP `GameData` folder and make sure
-Kerbal Konstructs, Harmony 2 (`000_Harmony`) and ModuleManager are installed as well:
+Manually: download the latest zip from [SpaceDock](https://spacedock.info/mod/4662/Offworld%20Space%20Centers),
+copy its `GameData/OffworldSpaceCenters` folder into your KSP `GameData` folder and make sure Kerbal Konstructs
+and Harmony 2 (`000_Harmony`) are installed as well:
 
 ```
 GameData/OffworldSpaceCenters/Plugins/OffworldSpaceCenters.dll
@@ -173,12 +174,16 @@ On Linux/WSL with Mono: `KSPDIR="/path/to/KSP" ./build.sh`.
 
 ## Releasing (CKAN)
 
-The mod is indexed by CKAN from the GitHub releases of this repository (`OffworldSpaceCenters.netkan` is the
-metadata submitted to the NetKAN repository). To publish a new version: bump `VERSION` in
-`GameData/OffworldSpaceCenters/OffworldSpaceCenters.version` and in `Source/AssemblyInfo.cs`, build, zip
-`GameData/OffworldSpaceCenters` together with `LICENSE` and `README.md` as `OffworldSpaceCenters-<version>.zip`,
-and attach that zip to a GitHub release. Do not bundle ModuleManager, Harmony or Kerbal Konstructs in the zip;
-CKAN installs them from the `depends` list.
+CKAN indexes this mod from its [SpaceDock page](https://spacedock.info/mod/4662/Offworld%20Space%20Centers), not
+from GitHub. To publish a new version: bump `VERSION` in `GameData/OffworldSpaceCenters/OffworldSpaceCenters.version`
+and in `Source/AssemblyInfo.cs`, build, zip `GameData/OffworldSpaceCenters` together with `LICENSE` and `README.md`
+as `OffworldSpaceCenters-<version>.zip` (with `GameData` at the top level of the zip), and upload it as a new
+version on SpaceDock. CKAN picks it up automatically and reads the KSP compatibility from the `.version` file.
+
+Keep the folder named `OffworldSpaceCenters` so it matches the CKAN identifier, and do not bundle Harmony or
+Kerbal Konstructs in the zip; CKAN installs them from the `depends` list. `OffworldSpaceCenters.netkan` is a
+reference copy of the metadata in the [NetKAN repository](https://github.com/KSP-CKAN/NetKAN). CKAN does not
+read it from here, so dependency or tag changes need a pull request there.
 
 ## Uninstall
 

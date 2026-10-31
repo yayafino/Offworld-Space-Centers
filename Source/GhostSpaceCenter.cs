@@ -4,20 +4,20 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
-namespace KolonySpaceCenters
+namespace OffworldSpaceCenters
 {
     /// <summary>
     /// "Space Center view" for bases on bodies other than the home world.
     ///
     /// The stock Space Center scene can only ever load the home world, so instead we spawn a tiny invisible
-    /// anchor vessel (part KolonyGhostAnchor) exactly at the base, load the flight scene focused on it, hide the
+    /// anchor vessel (part OffworldGhostAnchor) exactly at the base, load the flight scene focused on it, hide the
     /// flight UI, pin the anchor in place and give the camera Space-Center-like framing. KK's buildings load
-    /// around the active vessel as usual, designated buildings are clickable, and the Kolony window provides
+    /// around the active vessel as usual, designated buildings are clickable, and the Offworld window provides
     /// the facility buttons. The anchor is removed again as soon as any other scene loads.
     /// </summary>
     public static class GhostSpaceCenter
     {
-        public const string PartName = "KolonyGhostAnchor";
+        public const string PartName = "OffworldGhostAnchor";
         public const string NamePrefix = "KSC Anchor: ";
 
         /// <summary>Name of the center whose view is being entered; consumed by GhostView on flight start.</summary>
@@ -73,12 +73,12 @@ namespace KolonySpaceCenters
         }
 
         /// <summary>Should a LoadScene(SPACECENTER) be redirected into the selected base's Space Center view?</summary>
-        public static bool ShouldRedirect(out KolonyCenter center)
+        public static bool ShouldRedirect(out OffworldCenter center)
         {
             center = null;
             if (SuppressRedirectOnce) { SuppressRedirectOnce = false; return false; }
-            if (!KolonySettings.RedirectSpaceCenter) return false;
-            KolonyScenario sc = KolonyScenario.Instance;
+            if (!OffworldSettings.RedirectSpaceCenter) return false;
+            OffworldScenario sc = OffworldScenario.Instance;
             if (sc == null) return false;
             center = sc.SelectedCenter;
             if (center == null || center.IsOnHomeWorld) return false;
@@ -93,7 +93,7 @@ namespace KolonySpaceCenters
         }
 
         /// <summary>Space Center view of a vessel-anchored center: simply focus the station itself.</summary>
-        private static bool EnterVessel(KolonyCenter center)
+        private static bool EnterVessel(OffworldCenter center)
         {
             if (HighLogic.LoadedScene == GameScenes.FLIGHT)
             {
@@ -146,20 +146,21 @@ namespace KolonySpaceCenters
         }
 
         /// <summary>Enter the Space Center view of a center on another body. Works from Flight, TS, SC and the editors.</summary>
-        public static bool Enter(KolonyCenter center)
+        public static bool Enter(OffworldCenter center)
         {
             if (center == null) return false;
             if (center.IsVessel) return EnterVessel(center);
             if (NativeSpaceCenter.Handles(center))
             {
                 // native mode: select it and load the real Space Center scene
-                if (KolonyScenario.Instance != null) KolonyScenario.Instance.SelectSpaceCenter(center.Name);
+                if (OffworldScenario.Instance != null) OffworldScenario.Instance.SelectSpaceCenter(center.Name);
                 if (HighLogic.LoadedScene == GameScenes.FLIGHT)
                 {
                     string why;
                     if (!SceneActions.CanLeaveFlight(out why)) { ScreenMessages.PostScreenMessage(why, 4f, ScreenMessageStyle.UPPER_CENTER); return false; }
                     GamePersistence.SaveGame("persistent", HighLogic.SaveFolder, SaveMode.OVERWRITE);
                 }
+                NativeSpaceCenter.BaseOnce = true;
                 HighLogic.LoadScene(GameScenes.SPACECENTER);
                 return true;
             }
@@ -171,7 +172,7 @@ namespace KolonySpaceCenters
             }
             if (!PartAvailable)
             {
-                ScreenMessages.PostScreenMessage("KolonyGhostAnchor part is missing; reinstall Kolony Space Centers.", 6f, ScreenMessageStyle.UPPER_CENTER);
+                ScreenMessages.PostScreenMessage("OffworldGhostAnchor part is missing; reinstall Offworld Space Centers.", 6f, ScreenMessageStyle.UPPER_CENTER);
                 return false;
             }
             if (HighLogic.LoadedScene == GameScenes.FLIGHT)
@@ -336,7 +337,7 @@ namespace KolonySpaceCenters
     }
 
     /// <summary>Lives on the anchor part: invisible, pinned, and always counted as landed.</summary>
-    public class ModuleKolonyAnchor : PartModule
+    public class ModuleOffworldAnchor : PartModule
     {
         public override void OnStart(StartState state)
         {
@@ -376,10 +377,10 @@ namespace KolonySpaceCenters
     public class GhostView : MonoBehaviour
     {
         public static bool Active { get; private set; }
-        public static KolonyCenter Center { get; private set; }
+        public static OffworldCenter Center { get; private set; }
         public static GhostView Instance { get; private set; }
 
-        private const string LockId = "KolonyGhostView";
+        private const string LockId = "OffworldGhostView";
         private const ControlTypes Locks = ControlTypes.ALL_SHIP_CONTROLS | ControlTypes.STAGING | ControlTypes.EVA_INPUT
             | ControlTypes.ACTIONS_ALL | ControlTypes.GROUPS_ALL | ControlTypes.VESSEL_SWITCHING | ControlTypes.QUICKLOAD;
 
@@ -424,8 +425,8 @@ namespace KolonySpaceCenters
             }
             else if (v != null && !string.IsNullOrEmpty(GhostSpaceCenter.PendingCenterName))
             {
-                KolonyScenario sc = KolonyScenario.Instance;
-                KolonyCenter c = sc != null ? sc.GetByName(GhostSpaceCenter.PendingCenterName) : null;
+                OffworldScenario sc = OffworldScenario.Instance;
+                OffworldCenter c = sc != null ? sc.GetByName(GhostSpaceCenter.PendingCenterName) : null;
                 GhostSpaceCenter.PendingCenterName = "";
                 if (c != null && c.IsAnchor(v)) ActivateVesselView(v, c);
                 GhostSpaceCenter.RemoveAllGhosts(false);
@@ -446,7 +447,7 @@ namespace KolonySpaceCenters
         }
 
         /// <summary>Space Center mode on a real vessel (station): same presentation, nothing is pinned or hidden.</summary>
-        public void ActivateVesselView(Vessel v, KolonyCenter center)
+        public void ActivateVesselView(Vessel v, OffworldCenter center)
         {
             if (v == null) return;
             ghost = v;
@@ -469,7 +470,7 @@ namespace KolonySpaceCenters
                 }
             }
             catch (Exception e) { Log.Warn("Camera setup: " + e.Message); }
-            if (KolonyWindow.Instance != null && KolonySettings.AutoOpenPanel) KolonyWindow.Instance.ShowBasePanel();
+            if (OffworldWindow.Instance != null && OffworldSettings.AutoOpenPanel) OffworldWindow.Instance.ShowBasePanel();
             ScreenMessages.PostScreenMessage("Space Center: " + (center != null ? center.Name : v.vesselName), 4f, ScreenMessageStyle.UPPER_CENTER);
             Log.Info("Space Center view active on vessel " + v.vesselName);
         }
@@ -478,7 +479,7 @@ namespace KolonySpaceCenters
         {
             ghost = v;
             anchorMode = true;
-            KolonyScenario sc = KolonyScenario.Instance;
+            OffworldScenario sc = OffworldScenario.Instance;
             Center = sc != null ? sc.GetByName(GhostSpaceCenter.PendingCenterName) : null;
             if (Center == null && sc != null)
             {
@@ -508,7 +509,7 @@ namespace KolonySpaceCenters
             catch (Exception e) { Log.Warn("Camera setup: " + e.Message); }
 
             FlightDriver.SetPause(false, false);
-            if (KolonyWindow.Instance != null && KolonySettings.AutoOpenPanel) KolonyWindow.Instance.ShowBasePanel();
+            if (OffworldWindow.Instance != null && OffworldSettings.AutoOpenPanel) OffworldWindow.Instance.ShowBasePanel();
             ScreenMessages.PostScreenMessage("Space Center: " + (Center != null ? Center.Name : v.mainBody.displayName), 4f, ScreenMessageStyle.UPPER_CENTER);
             Log.Info("Space Center view active at " + (Center != null ? Center.ToString() : "unknown center"));
         }
@@ -603,6 +604,7 @@ namespace KolonySpaceCenters
             }
             SceneActions.PendingFacility = openFacility;
             GhostSpaceCenter.SuppressRedirectOnce = true;
+            NativeSpaceCenter.StockOnce = true;
             GamePersistence.SaveGame("persistent", HighLogic.SaveFolder, SaveMode.OVERWRITE);
             HighLogic.LoadScene(GameScenes.SPACECENTER);
         }

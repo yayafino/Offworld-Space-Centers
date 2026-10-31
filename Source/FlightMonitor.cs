@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 
-namespace KolonySpaceCenters
+namespace OffworldSpaceCenters
 {
     /// <summary>
     /// Watches the active vessel in flight. When a landed vessel crosses a flagged base's radius
@@ -14,10 +14,10 @@ namespace KolonySpaceCenters
         public static FlightMonitor Instance { get; private set; }
 
         /// <summary>Center the active vessel is currently inside, or null.</summary>
-        public KolonyCenter CurrentCenter { get; private set; }
+        public OffworldCenter CurrentCenter { get; private set; }
         public double CurrentDistance { get; private set; }
         /// <summary>Nearest active center on the current body regardless of range.</summary>
-        public KolonyCenter NearestCenter { get; private set; }
+        public OffworldCenter NearestCenter { get; private set; }
         public double NearestDistance { get; private set; }
 
         private bool lastInside;
@@ -48,9 +48,9 @@ namespace KolonySpaceCenters
             {
                 string name = SceneActions.PendingBaseViewName;
                 SceneActions.PendingBaseViewName = "";
-                if (KolonySettings.AutoOpenPanel && KolonyWindow.Instance != null)
+                if (OffworldSettings.AutoOpenPanel && OffworldWindow.Instance != null)
                 {
-                    KolonyWindow.Instance.ShowBasePanel();
+                    OffworldWindow.Instance.ShowBasePanel();
                 }
                 ScreenMessages.PostScreenMessage("Welcome to " + name, 4f, ScreenMessageStyle.UPPER_CENTER);
             }
@@ -77,7 +77,7 @@ namespace KolonySpaceCenters
             try
             {
                 Vessel v = FlightGlobals.ActiveVessel;
-                KolonyScenario sc = KolonyScenario.Instance;
+                OffworldScenario sc = OffworldScenario.Instance;
                 if (v == null || sc == null)
                 {
                     CurrentCenter = null;
@@ -85,13 +85,13 @@ namespace KolonySpaceCenters
                     return;
                 }
 
-                foreach (KolonyCenter vc in sc.Centers) if (vc.IsVessel) vc.SyncFromAnchor();
+                foreach (OffworldCenter vc in sc.Centers) if (vc.IsVessel) vc.SyncFromAnchor();
 
                 double nd;
                 NearestCenter = sc.Nearest(v, out nd);
                 NearestDistance = nd;
 
-                KolonyCenter inside;
+                OffworldCenter inside;
                 sc.IsRecoverableAtCenter(v, out inside);
                 CurrentDistance = inside != null ? inside.DistanceTo(v) : double.PositiveInfinity;
                 CurrentCenter = inside;
@@ -109,7 +109,7 @@ namespace KolonySpaceCenters
                     {
                         AltimeterPatches.Refresh(v);
                     }
-                    if (!silent && KolonySettings.RangeMessages && KolonySettings.RecoveryEnabled && !GhostSpaceCenter.IsGhost(v))
+                    if (!silent && OffworldSettings.RangeMessages && OffworldSettings.RecoveryEnabled && !GhostSpaceCenter.IsGhost(v))
                     {
                         if (isInside)
                         {
